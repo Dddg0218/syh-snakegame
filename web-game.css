@@ -299,11 +299,11 @@ kbd {
 }
 
 .letter-y {
-  animation-delay: 0.6s;
+  animation-delay: 0.35s;
 }
 
 .letter-h {
-  animation-delay: 1.2s;
+  animation-delay: 0.7s;
 }
 
 .snake-eye {
@@ -658,6 +658,159 @@ kbd {
   transform: rotate(45deg);
 }
 
+/* ---------- 开始页设置 ---------- */
+.settings-panel {
+  display: grid;
+  gap: 11px;
+  width: min(100%, 430px);
+  margin: 24px 0 4px;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.setting-label {
+  flex: none;
+  color: var(--muted);
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+}
+
+.segmented {
+  display: flex;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.segmented button {
+  padding: 5px 9px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  transition: background 160ms ease, color 160ms ease;
+}
+
+.segmented button:hover { color: var(--text); }
+
+.segmented button.is-on {
+  background: rgba(195, 245, 106, 0.15);
+  color: var(--green);
+}
+
+.switch {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.switch input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+
+.switch-track {
+  position: relative;
+  width: 34px;
+  height: 18px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  transition: background 200ms ease;
+}
+
+.switch-dot {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #8b9483;
+  transition: transform 200ms ease, background 200ms ease;
+}
+
+.switch input:checked + .switch-track { background: rgba(195, 245, 106, 0.3); }
+.switch input:checked + .switch-track .switch-dot { transform: translateX(16px); background: var(--green); }
+
+.switch-text {
+  color: var(--muted);
+  font-size: 0.66rem;
+  min-width: 26px;
+}
+
+/* ---------- 技能卡 ---------- */
+.ability-card {
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--panel);
+}
+
+.ability { margin-top: 14px; }
+
+.ability-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--text);
+  font-size: 0.78rem;
+}
+
+.ability-head kbd {
+  padding: 1px 5px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.55rem;
+}
+
+.ability-bar {
+  height: 3px;
+  margin-top: 7px;
+  border-radius: 3px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.ability-bar span {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: var(--green);
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+  transition: transform 100ms linear;
+}
+
+.ability-bar span.is-ready { box-shadow: 0 0 10px rgba(195, 245, 106, 0.7); }
+
+.ability-note {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 0.63rem;
+  line-height: 1.55;
+}
+
 .swatch-grow { background: #ffcf4d; }
 .swatch-slow { background: #63b8ff; }
 .swatch-shield { background: #c48bff; }
@@ -892,17 +1045,23 @@ kbd {
   .touch-controls {
     display: grid;
     justify-items: center;
-    gap: 4px;
+    gap: 10px;
     margin-top: 13px;
   }
 
-  .touch-controls > div {
+  .touch-pad {
+    display: grid;
+    justify-items: center;
+    gap: 4px;
+  }
+
+  .touch-pad > div {
     display: flex;
     gap: 4px;
   }
 
   .touch-controls button {
-    width: 34px;
+    min-width: 34px;
     height: 31px;
     border: 1px solid var(--line);
     border-radius: 4px;
@@ -910,6 +1069,15 @@ kbd {
     color: var(--green);
     cursor: pointer;
     touch-action: manipulation;
+  }
+
+  .touch-actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  .touch-actions button {
+    padding: 0 16px;
   }
 
   .restart-button {

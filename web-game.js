@@ -1,36 +1,42 @@
 "use strict";
 
 /* =========================================================
-   贪吃蛇 · 网页版
-   玩法：吃果实变长，躲开障碍、NPC 蛇和自己。
-   道具：金果（长度翻倍）、蓝药（减速）、紫盾（无敌）、青刃（减半）
+   贪吃蛇 · 网页版 v2
+   玩法：吃果实变长，躲开石墙、NPC 蛇和自己。
+   反击：Shift 冲刺撕咬（3 格无敌，可撞死 NPC）
+         E 蛇蜕陷阱（留下身体，NPC 撞上会死）
    ========================================================= */
 
-const canvas = document.getElementById("game-canvas");
-const ctx = canvas.getContext("2d");
+var canvas = document.getElementById("game-canvas");
+var ctx = canvas.getContext("2d");
 
-const CELL = 25;
-const COLS = canvas.width / CELL;
-const ROWS = canvas.height / CELL;
-const BASE_TICK = 118;
-const SLOW_TICK = 195;
-const BEST_KEY = "syh-snake-best-v2";
+var CELL = 25;
+var COLS = canvas.width / CELL;
+var ROWS = canvas.height / CELL;
+var BEST_KEY = "syh-snake-best-v3";
+var SETTINGS_KEY = "syh-snake-settings-v3";
 
-const DIRS = {
+var DIFFICULTY = {
+  easy:   { tick: 152, npcSpeed: 3, clusters: 2, npcMax: 2, powerup: 8000,  label: "轻松" },
+  normal: { tick: 118, npcSpeed: 2, clusters: 3, npcMax: 3, powerup: 9000,  label: "普通" },
+  hard:   { tick: 92,  npcSpeed: 1, clusters: 4, npcMax: 4, powerup: 11000, label: "困难" }
+};
+
+var DIRS = {
   up: { x: 0, y: -1 },
   down: { x: 0, y: 1 },
   left: { x: -1, y: 0 },
-  right: { x: 1, y: 0 },
+  right: { x: 1, y: 0 }
 };
 
-const POWERUPS = {
-  grow: { label: "长度翻倍", color: "#ffcf4d", glyph: "x2" },
-  slow: { label: "减速 6 秒", color: "#63b8ff", glyph: "~" },
-  shield: { label: "无敌 6 秒", color: "#c48bff", glyph: "+" },
-  shrink: { label: "长度减半", color: "#5fe6c4", glyph: "2" },
+var POWERUPS = {
+  grow: { color: "#ffcf4d", glyph: "x2" },
+  slow: { color: "#63b8ff", glyph: "~" },
+  shield: { color: "#c48bff", glyph: "+" },
+  shrink: { color: "#5fe6c4", glyph: "2" }
 };
 
-const el = {
+var el = {
   landing: document.getElementById("landing-screen"),
   play: document.getElementById("play-screen"),
   overlay: document.getElementById("board-overlay"),
@@ -41,19 +47,27 @@ const el = {
   score: document.getElementById("score-value"),
   best: document.getElementById("best-value"),
   level: document.getElementById("level-value"),
+  kills: document.getElementById("kill-value"),
   chips: document.getElementById("effect-chips"),
+  dashFill: document.getElementById("dash-fill"),
+  moltFill: document.getElementById("molt-fill"),
   startButton: document.getElementById("start-button"),
   homeButton: document.getElementById("home-button"),
   restartButton: document.getElementById("restart-button"),
+  sfxToggle: document.getElementById("sfx-toggle"),
+  sfxText: document.getElementById("sfx-text")
 };
 
-const G = {
+var settings = loadSettings();
+
+var G = {
   status: "ready",
   snake: [],
   dir: DIRS.right,
   queue: [],
   npcs: [],
   walls: new Set(),
+  traps: [],
   food: null,
   powerups: [],
   particles: [],
@@ -61,7 +75,10 @@ const G = {
   best: readBest(),
   level: 1,
   eaten: 0,
+  kills: 0,
   effects: { slow: 0, shield: 0 },
+  cooldown: { dash: 0, molt: 0 },
+  dashGlow: 0,
   timer: null,
   raf: null,
   lastFrame: 0,
@@ -69,14 +86,80 @@ const G = {
   spawnTimer: 0,
   shake: 0,
   flash: 0,
-  chipTimer: 0,
+  chipTimer: 0
 };
 
 el.best.textContent = pad(G.best);
 resizeCanvasForDpr();
-
-/* 方便调试：控制台可以看当前局面 */
 window.SYH_SNAKE = G;
+window.SYH_SETTINGS = settings;
+
+/* ---------------- 设置 ---------------- */
+
+function loadSettings() {
+  var base = { difficulty: "normal", track: "chill", music: true, sfx: true };
+  try {
+    var raw = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
+    return {
+      difficulty: DIFFICULTY[raw.difficulty] ? raw.difficulty : base.difficulty,
+      track: raw.track || base.track,
+      music: raw.music !== false,
+      sfx: raw.sfx !== false
+    };
+  } catch (error) {
+    return base;
+  }
+}
+
+function saveSettings() {
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (error) { /* ignore */ }
+}
+
+function syncSettingsUI() {
+  document.querySelectorAll("[data-setting]").forEach(function (group) {
+    var key = group.dataset.setting;
+    var value = key === "track" ? (settings.music ? settings.track : "off") : settings.difficulty;
+    group.querySelectorAll("button").forEach(function (btn) {
+      btn.classList.toggle("is-on", btn.dataset.value === value);
+    });
+  });
+  if (el.sfxToggle) el.sfxToggle.checked = settings.sfx;
+  if (el.sfxText) el.sfxText.textContent = settings.sfx ? "开启" : "关闭";
+}
+
+document.querySelectorAll("[data-setting]").forEach(function (group) {
+  group.addEventListener("click", function (event) {
+    var btn = event.target.closest("button");
+    if (!btn) return;
+    var key = group.dataset.setting;
+    if (key === "difficulty") {
+      settings.difficulty = btn.dataset.value;
+    } else if (key === "track") {
+      if (btn.dataset.value === "off") {
+        settings.music = false;
+      } else {
+        settings.music = true;
+        settings.track = btn.dataset.value;
+        SnakeAudio.setTrack(settings.track);
+      }
+      SnakeAudio.setMusic(settings.music);
+    }
+    saveSettings();
+    syncSettingsUI();
+    SnakeAudio.resume();
+  });
+});
+
+if (el.sfxToggle) {
+  el.sfxToggle.addEventListener("change", function () {
+    settings.sfx = el.sfxToggle.checked;
+    SnakeAudio.setSfx(settings.sfx);
+    saveSettings();
+    syncSettingsUI();
+  });
+}
+
+/* ---------------- 启动 / 暂停 / 结束 ---------------- */
 
 el.startButton.addEventListener("click", openGame);
 el.homeButton.addEventListener("click", returnHome);
@@ -89,6 +172,12 @@ el.overlayButton.addEventListener("click", function () {
 document.addEventListener("keydown", handleKeydown);
 document.querySelectorAll("[data-direction]").forEach(function (button) {
   button.addEventListener("click", function () { queueDirection(button.dataset.direction); });
+});
+document.querySelectorAll("[data-action]").forEach(function (button) {
+  button.addEventListener("click", function () {
+    if (button.dataset.action === "dash") tryDash();
+    else molt();
+  });
 });
 document.addEventListener("visibilitychange", function () {
   if (document.hidden && G.status === "running") pauseGame();
@@ -113,6 +202,8 @@ canvas.addEventListener("touchend", function (event) {
 function openGame() {
   el.landing.hidden = true;
   el.play.hidden = false;
+  SnakeAudio.resume();
+  SnakeAudio.start();
   startGame();
 }
 
@@ -138,11 +229,14 @@ function startGame() {
   G.score = 0;
   G.level = 1;
   G.eaten = 0;
+  G.kills = 0;
   G.effects = { slow: 0, shield: 0 };
+  G.cooldown = { dash: 0, molt: 0 };
   G.powerups = [];
+  G.traps = [];
   G.particles = [];
   G.tickCount = 0;
-  G.spawnTimer = 9000;
+  G.spawnTimer = DIFFICULTY[settings.difficulty].powerup;
   G.shake = 0;
   G.flash = 0;
   G.status = "running";
@@ -150,13 +244,16 @@ function startGame() {
   buildLevel(1);
   G.food = randomFreeCell();
   el.score.textContent = pad(G.score);
-  el.level.textContent = String(G.level).padStart(2, "0");
+  el.level.textContent = "01";
+  el.kills.textContent = "0";
   updateChips();
+  updateAbilities();
 
   hideOverlay();
   setStatus("PLAYING");
   scheduleTick();
   startRender();
+  SnakeAudio.play("start");
 }
 
 function pauseGame() {
@@ -180,17 +277,19 @@ function endGame(reason) {
   stopTimer();
   G.status = "over";
   G.flash = 1;
-  G.shake = 14;
+  G.shake = 16;
   setStatus("GAME OVER");
+  SnakeAudio.play("die");
   if (G.score > G.best) {
     G.best = G.score;
     el.best.textContent = pad(G.best);
     writeBest(G.best);
   }
   var titles = {
-    wall: "撞上障碍了",
+    wall: "撞上石墙了",
     self: "咬到自己了",
-    npc: "被 NPC 蛇拦住了"
+    npc: "被 NPC 蛇撞了",
+    npcHead: "和 NPC 撞了个正着"
   };
   showOverlay("GAME OVER", titles[reason] || "再来一局", "再玩一次", "restart");
 }
@@ -200,12 +299,15 @@ function stopGame() {
   stopRender();
 }
 
+/* ---------------- 关卡 ---------------- */
+
 function buildLevel(level) {
+  var diff = DIFFICULTY[settings.difficulty];
   G.walls = new Set();
   var baseX = Math.floor(COLS / 2);
   var baseY = Math.floor(ROWS / 2);
 
-  var clusters = 2 + Math.min(3, level);
+  var clusters = diff.clusters + Math.min(2, level - 1);
   for (var c = 0; c < clusters; c += 1) {
     var cx = 3 + Math.floor(Math.random() * (COLS - 6));
     var cy = 3 + Math.floor(Math.random() * (ROWS - 6));
@@ -225,27 +327,35 @@ function buildLevel(level) {
   }
 
   G.npcs = [];
-  var npcCount = Math.min(3, 1 + Math.floor((level - 1) / 2));
+  var npcCount = Math.min(diff.npcMax, 1 + Math.floor((level - 1) / 2));
   for (var n = 0; n < npcCount; n += 1) {
-    var spot = randomFreeCell(4);
-    if (!spot) continue;
-    var dir = Object.values(DIRS)[Math.floor(Math.random() * 4)];
-    var cells = [];
-    for (var k = 0; k < 4; k += 1) {
-      cells.push({ x: wrapX(spot.x - dir.x * k), y: wrapY(spot.y - dir.y * k) });
-    }
-    G.npcs.push({
-      cells: cells,
-      dir: dir,
-      color: n === 0 ? "#7bd1ff" : "#ffb86b",
-      speed: 2
-    });
+    G.npcs.push(makeNpc(n));
   }
 }
 
+function makeNpc(index) {
+  var diff = DIFFICULTY[settings.difficulty];
+  var spot = randomFreeCell(4) || { x: 2, y: 2 };
+  var dir = Object.values(DIRS)[Math.floor(Math.random() * 4)];
+  var cells = [];
+  for (var k = 0; k < 4; k += 1) {
+    cells.push({ x: wrapX(spot.x - dir.x * k), y: wrapY(spot.y - dir.y * k) });
+  }
+  return {
+    cells: cells,
+    dir: dir,
+    color: index === 0 ? "#7bd1ff" : (index === 1 ? "#ffb86b" : "#ff8fb1"),
+    speed: diff.npcSpeed,
+    deadUntil: 0
+  };
+}
+
+/* ---------------- 主循环 ---------------- */
+
 function scheduleTick() {
   stopTimer();
-  var delay = G.effects.slow > 0 ? SLOW_TICK : BASE_TICK;
+  var base = DIFFICULTY[settings.difficulty].tick;
+  var delay = G.effects.slow > 0 ? base * 1.65 : base;
   G.timer = window.setTimeout(function () {
     if (G.status !== "running") return;
     step();
@@ -268,19 +378,28 @@ function step() {
     endGame("self");
     return;
   }
-  if (!shielded && G.npcs.some(function (npc) {
-    return npc.cells.some(function (part) { return part.x === next.x && part.y === next.y; });
-  })) {
+  if (!shielded && npcAt(next) >= 0) {
     endGame("npc");
     return;
   }
 
   G.snake.unshift(next);
+  eatAt(next);
 
-  if (G.food && next.x === G.food.x && next.y === G.food.y) {
-    burst(next.x, next.y, "#ff765e");
+  G.tickCount += 1;
+  G.npcs.forEach(function (npc) { stepNpc(npc); });
+
+  // 陷阱到期
+  var now = performance.now();
+  G.traps = G.traps.filter(function (t) { return t.until > now; });
+}
+
+function eatAt(cell) {
+  if (G.food && cell.x === G.food.x && cell.y === G.food.y) {
+    burst(cell.x, cell.y, "#ff765e", 14);
     G.score += 10;
     G.eaten += 1;
+    SnakeAudio.play("eat");
     el.score.textContent = pad(G.score);
     G.food = randomFreeCell();
     if (G.eaten % 5 === 0) {
@@ -288,6 +407,7 @@ function step() {
       el.level.textContent = String(G.level).padStart(2, "0");
       buildLevel(G.level);
       setStatus("LEVEL " + G.level);
+      SnakeAudio.play("level");
     }
   } else {
     G.snake.pop();
@@ -295,20 +415,35 @@ function step() {
 
   for (var i = G.powerups.length - 1; i >= 0; i -= 1) {
     var p = G.powerups[i];
-    if (p.x === next.x && p.y === next.y) {
+    if (p.x === cell.x && p.y === cell.y) {
       applyPowerup(p.type);
       burst(p.x, p.y, POWERUPS[p.type].color, 18);
       G.powerups.splice(i, 1);
     }
   }
+}
 
-  G.tickCount += 1;
-  G.npcs.forEach(function (npc) {
-    if (G.tickCount % npc.speed === 0) stepNpc(npc);
-  });
+/* ---------------- NPC ---------------- */
+
+function npcAt(cell) {
+  for (var i = 0; i < G.npcs.length; i += 1) {
+    var npc = G.npcs[i];
+    if (npc.deadUntil > performance.now()) continue;
+    if (npc.cells.some(function (part) { return part.x === cell.x && part.y === cell.y; })) return i;
+  }
+  return -1;
 }
 
 function stepNpc(npc) {
+  var now = performance.now();
+  if (npc.deadUntil > now) return;
+  if (npc.deadUntil && npc.deadUntil <= now) {
+    var fresh = makeNpc(G.npcs.indexOf(npc));
+    npc.cells = fresh.cells;
+    npc.dir = fresh.dir;
+    npc.deadUntil = 0;
+  }
+
   var head = npc.cells[0];
   var options = Object.values(DIRS).filter(function (d) {
     if (d.x === -npc.dir.x && d.y === -npc.dir.y) return false;
@@ -319,14 +454,11 @@ function stepNpc(npc) {
     return true;
   });
 
-  if (!options.length) {
-    npc.dir = DIRS.up;
-    return;
-  }
+  if (!options.length) return;
 
   var picked = options[Math.floor(Math.random() * options.length)];
   var playerHead = G.snake[0];
-  if (Math.random() < 0.55) {
+  if (Math.random() < 0.5) {
     picked = options.reduce(function (best, d) {
       var bx = wrapX(head.x + best.x);
       var by = wrapY(head.y + best.y);
@@ -339,8 +471,76 @@ function stepNpc(npc) {
   }
 
   npc.dir = picked;
-  npc.cells.unshift({ x: wrapX(head.x + picked.x), y: wrapY(head.y + picked.y) });
+  var nx = wrapX(head.x + picked.x);
+  var ny = wrapY(head.y + picked.y);
+
+  // NPC 撞陷阱 / 撞玩家身体 -> 死
+  var hitTrap = G.traps.some(function (t) { return t.x === nx && t.y === ny; });
+  var hitPlayer = G.snake.some(function (part) { return part.x === nx && part.y === ny; });
+
+  if (hitTrap || hitPlayer) {
+    killNpc(G.npcs.indexOf(npc), nx, ny);
+    return;
+  }
+
+  npc.cells.unshift({ x: nx, y: ny });
   npc.cells.pop();
+}
+
+function killNpc(index, x, y) {
+  var npc = G.npcs[index];
+  if (!npc) return;
+  npc.deadUntil = performance.now() + 3800;
+  npc.cells = [];
+  G.kills += 1;
+  G.score += 30;
+  el.kills.textContent = String(G.kills);
+  el.score.textContent = pad(G.score);
+  burst(x, y, npc.color, 22);
+  G.shake = 8;
+  SnakeAudio.play("kill");
+}
+
+/* ---------------- 技能 ---------------- */
+
+function tryDash() {
+  if (G.status !== "running" || G.cooldown.dash > 0) return;
+  G.cooldown.dash = 4200;
+  G.dashGlow = 1;
+  SnakeAudio.play("dash");
+  var moved = 0;
+
+  for (var i = 0; i < 3; i += 1) {
+    var head = G.snake[0];
+    var next = { x: wrapX(head.x + G.dir.x), y: wrapY(head.y + G.dir.y) };
+    if (G.walls.has(key(next.x, next.y))) break;
+    if (G.snake.some(function (p) { return p.x === next.x && p.y === next.y; })) break;
+
+    var idx = npcAt(next);
+    if (idx >= 0) killNpc(idx, next.x, next.y);
+
+    G.snake.unshift(next);
+    eatAt(next);
+    burst(next.x, next.y, "#d4ff8a", 5);
+    moved += 1;
+  }
+
+  if (!moved) G.shake = 3;
+  updateAbilities();
+}
+
+function molt() {
+  if (G.status !== "running" || G.cooldown.molt > 0) return;
+  if (G.snake.length < 5) return;
+  var tail = G.snake[G.snake.length - 1];
+  G.traps.push({ x: tail.x, y: tail.y, until: performance.now() + 9000 });
+  G.snake.pop();
+  G.snake.pop();
+  G.cooldown.molt = 7200;
+  el.score.textContent = pad(G.score);
+  SnakeAudio.play("molt");
+  burst(tail.x, tail.y, "#8fd6a8", 10);
+  updateAbilities();
 }
 
 function applyPowerup(type) {
@@ -360,6 +560,7 @@ function applyPowerup(type) {
     G.effects.shield = 6000;
   }
   el.score.textContent = pad(G.score);
+  SnakeAudio.play("power");
   updateChips();
 }
 
@@ -368,7 +569,7 @@ function spawnPowerup() {
   var type = types[Math.floor(Math.random() * types.length)];
   var cell = randomFreeCell();
   if (!cell) return;
-  G.powerups.push({ x: cell.x, y: cell.y, type: type, born: performance.now() });
+  G.powerups.push({ x: cell.x, y: cell.y, type: type });
   if (G.powerups.length > 2) G.powerups.shift();
 }
 
@@ -396,13 +597,28 @@ function handleKeydown(event) {
     }
     return;
   }
-  if (event.code === "Space" && !el.play.hidden) {
+
+  if (el.play.hidden) return;
+
+  if (event.key === "Shift") {
+    event.preventDefault();
+    tryDash();
+    return;
+  }
+  if (event.key.toLowerCase() === "e") {
+    event.preventDefault();
+    molt();
+    return;
+  }
+  if (event.code === "Space") {
     event.preventDefault();
     if (G.status === "running") pauseGame();
     else if (G.status === "paused") resumeGame();
     else if (G.status === "over") startGame();
   }
 }
+
+/* ---------------- 渲染 ---------------- */
 
 function startRender() {
   if (G.raf) return;
@@ -427,11 +643,15 @@ function stopRender() {
 function tickEffects(dt) {
   if (G.effects.slow > 0) G.effects.slow = Math.max(0, G.effects.slow - dt);
   if (G.effects.shield > 0) G.effects.shield = Math.max(0, G.effects.shield - dt);
+  if (G.cooldown.dash > 0) G.cooldown.dash = Math.max(0, G.cooldown.dash - dt);
+  if (G.cooldown.molt > 0) G.cooldown.molt = Math.max(0, G.cooldown.molt - dt);
+  if (G.dashGlow > 0) G.dashGlow = Math.max(0, G.dashGlow - dt * 0.004);
+
   if (G.status === "running") {
     G.spawnTimer -= dt;
     if (G.spawnTimer <= 0) {
       spawnPowerup();
-      G.spawnTimer = 9000 + Math.random() * 5000;
+      G.spawnTimer = DIFFICULTY[settings.difficulty].powerup + Math.random() * 4000;
     }
   }
   if (G.shake > 0) G.shake = Math.max(0, G.shake - dt * 0.06);
@@ -441,6 +661,7 @@ function tickEffects(dt) {
   if (G.chipTimer <= 0) {
     G.chipTimer = 120;
     updateChips();
+    updateAbilities();
   }
 
   for (var i = G.particles.length - 1; i >= 0; i -= 1) {
@@ -486,6 +707,16 @@ function draw(now) {
     ctx.strokeRect(x * CELL + 1.5, y * CELL + 1.5, CELL - 3, CELL - 3);
   });
 
+  G.traps.forEach(function (t) {
+    var alpha = 0.35 + Math.sin(now / 200) * 0.15;
+    ctx.fillStyle = "rgba(143, 214, 168, " + alpha * 0.5 + ")";
+    ctx.fillRect(t.x * CELL + 4, t.y * CELL + 4, CELL - 8, CELL - 8);
+    ctx.strokeStyle = "rgba(143, 214, 168, " + alpha + ")";
+    ctx.setLineDash([3, 3]);
+    ctx.strokeRect(t.x * CELL + 3.5, t.y * CELL + 3.5, CELL - 7, CELL - 7);
+    ctx.setLineDash([]);
+  });
+
   if (G.food) {
     var pulse = 0.5 + Math.sin(now / 260) * 0.08;
     ctx.fillStyle = "#ff765e";
@@ -523,6 +754,7 @@ function draw(now) {
   });
 
   G.npcs.forEach(function (npc) {
+    if (!npc.cells.length) return;
     npc.cells.forEach(function (part, index) {
       ctx.fillStyle = index === 0 ? npc.color : hexA(npc.color, 0.72);
       roundRect(part.x * CELL + 3, part.y * CELL + 3, CELL - 6, CELL - 6, index === 0 ? 7 : 5);
@@ -537,12 +769,17 @@ function draw(now) {
   });
 
   var shieldOn = G.effects.shield > 0;
+  if (G.dashGlow > 0.02) {
+    ctx.shadowColor = "#d4ff8a";
+    ctx.shadowBlur = 18 * G.dashGlow;
+  }
   G.snake.forEach(function (part, index) {
     var inset = index === 0 ? 2 : 3;
     ctx.fillStyle = index === 0 ? "#d4ff8a" : (shieldOn ? "#9fe8c4" : "#9ccb4d");
     roundRect(part.x * CELL + inset, part.y * CELL + inset, CELL - inset * 2, CELL - inset * 2, index === 0 ? 7 : 5);
     ctx.fill();
   });
+  ctx.shadowBlur = 0;
   if (G.snake.length) drawEyes(G.snake[0]);
 
   G.particles.forEach(function (p) {
@@ -602,6 +839,8 @@ function hexA(hex, alpha) {
   return "rgba(" + ((n >> 16) & 255) + ", " + ((n >> 8) & 255) + ", " + (n & 255) + ", " + alpha + ")";
 }
 
+/* ---------------- 界面 ---------------- */
+
 function showOverlay(kicker, title, buttonText, action) {
   el.overlayKicker.textContent = kicker;
   el.overlayTitle.textContent = title;
@@ -633,6 +872,23 @@ function updateChips() {
   }
 }
 
+function updateAbilities() {
+  var dashMax = 4200;
+  var moltMax = 7200;
+  if (el.dashFill) {
+    var ready = Math.max(0, 1 - G.cooldown.dash / dashMax);
+    el.dashFill.style.transform = "scaleX(" + ready.toFixed(3) + ")";
+    el.dashFill.classList.toggle("is-ready", G.cooldown.dash <= 0);
+  }
+  if (el.moltFill) {
+    var ready2 = Math.max(0, 1 - G.cooldown.molt / moltMax);
+    el.moltFill.style.transform = "scaleX(" + ready2.toFixed(3) + ")";
+    el.moltFill.classList.toggle("is-ready", G.cooldown.molt <= 0);
+  }
+}
+
+/* ---------------- 工具 ---------------- */
+
 function key(x, y) {
   return x + "," + y;
 }
@@ -654,6 +910,7 @@ function randomFreeCell(minDistance) {
       if (G.npcs.some(function (n) {
         return n.cells.some(function (p) { return p.x === x && p.y === y; });
       })) continue;
+      if (G.traps.some(function (t) { return t.x === x && t.y === y; })) continue;
       if (G.food && G.food.x === x && G.food.y === y) continue;
       if (G.powerups.some(function (p) { return p.x === x && p.y === y; })) continue;
       if (minDistance) {
@@ -673,7 +930,7 @@ function pad(value) {
 
 function readBest() {
   try {
-    var v = Number(window.localStorage.getItem(BEST_KEY));
+    var v = Number(localStorage.getItem(BEST_KEY));
     return Number.isFinite(v) && v > 0 ? v : 0;
   } catch (error) {
     return 0;
@@ -681,11 +938,7 @@ function readBest() {
 }
 
 function writeBest(value) {
-  try {
-    window.localStorage.setItem(BEST_KEY, String(value));
-  } catch (error) {
-    /* ignore */
-  }
+  try { localStorage.setItem(BEST_KEY, String(value)); } catch (error) { /* ignore */ }
 }
 
 function stopTimer() {
@@ -702,3 +955,6 @@ function resizeCanvasForDpr() {
   canvas.style.height = "auto";
   draw(performance.now());
 }
+
+syncSettingsUI();
+SnakeAudio.setSfx(settings.sfx);

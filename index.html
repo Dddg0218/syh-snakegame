@@ -4,12 +4,14 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#111610" />
-  <meta name="description" content="邵逸煌制作的网页版贪吃蛇游戏，使用键盘或触屏开始挑战。" />
+  <meta name="description" content="邵逸煌做的网页版贪吃蛇：NPC 蛇、石墙、道具、冲刺撕咬和蛇蜕陷阱。" />
   <title>Snake Game — 邵逸煌制作</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="web-game.css" />
+  <script src="game-audio.js" defer></script>
   <script src="web-game.js" defer></script>
 </head>
 <body>
@@ -28,7 +30,36 @@
         <div class="landing-copy">
           <p class="eyebrow"><span>01</span> &nbsp; THE CLASSIC, REIMAGINED</p>
           <h1 id="landing-title">SNAKE<br /><span>GAME</span><i>.</i></h1>
-          <p class="landing-description">吃掉果实变长，躲开石墙和 NPC 蛇。<br />路上会掉落道具：翻倍、减速、无敌、减半。</p>
+          <p class="landing-description">吃果实变长，躲开石墙和 NPC 蛇。<br />但这次你可以反击：冲刺撕咬，或者蜕皮设陷阱。</p>
+
+          <div class="settings-panel" aria-label="游戏设置">
+            <div class="setting-row">
+              <span class="setting-label">难度</span>
+              <div class="segmented" data-setting="difficulty">
+                <button type="button" data-value="easy">轻松</button>
+                <button type="button" data-value="normal" class="is-on">普通</button>
+                <button type="button" data-value="hard">困难</button>
+              </div>
+            </div>
+            <div class="setting-row">
+              <span class="setting-label">音乐</span>
+              <div class="segmented" data-setting="track">
+                <button type="button" data-value="chill" class="is-on">CHILL</button>
+                <button type="button" data-value="arcade">ARCADE</button>
+                <button type="button" data-value="pulse">PULSE</button>
+                <button type="button" data-value="off">关闭</button>
+              </div>
+            </div>
+            <div class="setting-row">
+              <span class="setting-label">音效</span>
+              <label class="switch">
+                <input type="checkbox" id="sfx-toggle" checked />
+                <span class="switch-track" aria-hidden="true"><span class="switch-dot"></span></span>
+                <span class="switch-text" id="sfx-text">开启</span>
+              </label>
+            </div>
+          </div>
+
           <button class="primary-button" id="start-button" type="button">
             <span>开始游戏</span>
             <span class="button-arrow" aria-hidden="true">↗</span>
@@ -36,7 +67,7 @@
           <div class="landing-meta">
             <span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 或方向键移动</span>
             <span class="meta-divider" aria-hidden="true"></span>
-            <span>空格键暂停</span>
+            <span>空格暂停</span>
           </div>
         </div>
 
@@ -92,7 +123,7 @@
             </div>
             <div class="board-bottomline">
               <span>WASD / ↑ ↓ ← → / 滑动</span>
-              <span>SPACE TO PAUSE</span>
+              <span>SHIFT 冲刺 · E 蜕皮 · 空格暂停</span>
             </div>
           </div>
 
@@ -103,7 +134,22 @@
               <div class="score-rule"></div>
               <p class="best-score">最高纪录 <strong id="best-value">000</strong></p>
               <p class="level-line">关卡 <strong id="level-value">01</strong></p>
+              <p class="level-line">击杀 <strong id="kill-value">0</strong></p>
               <div class="effect-chips" id="effect-chips" aria-live="polite"></div>
+            </div>
+
+            <div class="ability-card">
+              <p class="card-label">技能 <span>ABILITIES</span></p>
+              <div class="ability" id="ability-dash">
+                <div class="ability-head"><span>冲刺撕咬</span><kbd>SHIFT</kbd></div>
+                <div class="ability-bar"><span id="dash-fill"></span></div>
+                <p class="ability-note">冲刺 3 格，撞到 NPC 直接咬死</p>
+              </div>
+              <div class="ability" id="ability-molt">
+                <div class="ability-head"><span>蛇蜕陷阱</span><kbd>E</kbd></div>
+                <div class="ability-bar"><span id="molt-fill"></span></div>
+                <p class="ability-note">留下一段身体当陷阱，NPC 撞上会死</p>
+              </div>
             </div>
 
             <div class="legend-card">
@@ -124,13 +170,19 @@
                 <kbd class="key-down">↓</kbd>
                 <kbd class="key-right">→</kbd>
               </div>
-              <p class="controls-note">方向键或 WASD 移动<br />按空格键暂停 / 继续</p>
-              <div class="touch-controls" aria-label="触屏方向控制">
-                <button type="button" data-direction="up" aria-label="向上">↑</button>
-                <div>
-                  <button type="button" data-direction="left" aria-label="向左">←</button>
-                  <button type="button" data-direction="down" aria-label="向下">↓</button>
-                  <button type="button" data-direction="right" aria-label="向右">→</button>
+              <p class="controls-note">方向键或 WASD 移动<br />Shift 冲刺 / E 蜕皮 / 空格暂停</p>
+              <div class="touch-controls" aria-label="触屏控制">
+                <div class="touch-pad">
+                  <button type="button" data-direction="up" aria-label="向上">↑</button>
+                  <div>
+                    <button type="button" data-direction="left" aria-label="向左">←</button>
+                    <button type="button" data-direction="down" aria-label="向下">↓</button>
+                    <button type="button" data-direction="right" aria-label="向右">→</button>
+                  </div>
+                </div>
+                <div class="touch-actions">
+                  <button type="button" data-action="dash">冲刺</button>
+                  <button type="button" data-action="molt">蜕皮</button>
                 </div>
               </div>
             </div>
