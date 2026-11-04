@@ -440,6 +440,9 @@ kbd {
 
 .board-wrap {
   min-width: 0;
+  width: 100%;
+  max-width: 690px;
+  justify-self: center;
   padding: 15px;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -525,7 +528,8 @@ kbd {
 }
 
 .score-card,
-.controls-card {
+.controls-card,
+.legend-card {
   padding: 20px;
   border: 1px solid var(--line);
   border-radius: 7px;
@@ -580,6 +584,84 @@ kbd {
   font-size: 0.8rem;
   font-weight: 500;
 }
+
+.level-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.level-line strong {
+  color: var(--green);
+  font-family: var(--mono);
+  font-size: 0.86rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+}
+
+.effect-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.effect-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.04em;
+  animation: chipIn 0.25s ease both;
+}
+
+.effect-chip.chip-shield { color: #c48bff; }
+.effect-chip.chip-slow { color: #63b8ff; }
+
+@keyframes chipIn {
+  from { opacity: 0; transform: translateY(3px); }
+}
+
+@media (max-width: 720px) {
+  .topbar-status { display: none; }
+  .topbar { gap: 12px; }
+}
+
+.legend-list {
+  display: grid;
+  gap: 9px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.legend-list li {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+
+.swatch {
+  width: 9px;
+  height: 9px;
+  flex: none;
+  border-radius: 2px;
+  transform: rotate(45deg);
+}
+
+.swatch-grow { background: #ffcf4d; }
+.swatch-slow { background: #63b8ff; }
+.swatch-shield { background: #c48bff; }
+.swatch-shrink { background: #5fe6c4; }
 
 .keypad {
   display: grid;

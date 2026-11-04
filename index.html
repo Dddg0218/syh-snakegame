@@ -28,7 +28,7 @@
         <div class="landing-copy">
           <p class="eyebrow"><span>01</span> &nbsp; THE CLASSIC, REIMAGINED</p>
           <h1 id="landing-title">SNAKE<br /><span>GAME</span><i>.</i></h1>
-          <p class="landing-description">吃掉食物，变得更长。<br />小心别撞到自己——准备好了吗？</p>
+          <p class="landing-description">吃掉果实变长，躲开石墙和 NPC 蛇。<br />路上会掉落道具：翻倍、减速、无敌、减半。</p>
           <button class="primary-button" id="start-button" type="button">
             <span>开始游戏</span>
             <span class="button-arrow" aria-hidden="true">↗</span>
@@ -91,7 +91,7 @@
               </div>
             </div>
             <div class="board-bottomline">
-              <span>WASD / ↑ ↓ ← →</span>
+              <span>WASD / ↑ ↓ ← → / 滑动</span>
               <span>SPACE TO PAUSE</span>
             </div>
           </div>
@@ -102,6 +102,18 @@
               <strong id="score-value">000</strong>
               <div class="score-rule"></div>
               <p class="best-score">最高纪录 <strong id="best-value">000</strong></p>
+              <p class="level-line">关卡 <strong id="level-value">01</strong></p>
+              <div class="effect-chips" id="effect-chips" aria-live="polite"></div>
+            </div>
+
+            <div class="legend-card">
+              <p class="card-label">道具 <span>POWER-UPS</span></p>
+              <ul class="legend-list">
+                <li><i class="swatch swatch-grow"></i><span>金色 · 长度翻倍</span></li>
+                <li><i class="swatch swatch-slow"></i><span>蓝色 · 减速 6 秒</span></li>
+                <li><i class="swatch swatch-shield"></i><span>紫色 · 无敌 6 秒</span></li>
+                <li><i class="swatch swatch-shrink"></i><span>青色 · 长度减半</span></li>
+              </ul>
             </div>
 
             <div class="controls-card">
