@@ -958,3 +958,8 @@ function resizeCanvasForDpr() {
 
 syncSettingsUI();
 SnakeAudio.setSfx(settings.sfx);
+
+var yearNow = String(new Date().getFullYear());
+document.querySelectorAll("[data-year]").forEach(function (node) {
+  node.textContent = yearNow;
+});
